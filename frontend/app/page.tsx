@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,11 +14,57 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export default function Home() {
+  const [prompt, setPrompt] = useState("")
   const [quality, setQuality] = useState(50)
   const [promptStrength, setPromptStrength] = useState(0.5)
   const [aspectRatio, setAspectRatio] = useState("16:9")
   const [imageFormat, setImageFormat] = useState("png")
   const [disableSafetyCheck, setDisableSafetyCheck] = useState(false)
+  const [generatedImages, setGeneratedImages] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [imageUrl, setImageUrl] = useState("")
+
+  async function handleGenerateImage() {
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://localhost:4000/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          guidance: 7.5,
+          numOutputs: 1,
+          aspectRatio,
+          outputFormat: imageFormat,
+          outputQuality: quality,
+          promptStrength,
+          numInferenceSteps: 28,
+          disableSafetyCheck,
+          imageUrl, // Include the imageUrl in the request
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate image');
+      }
+
+      if (data.success) {
+        setGeneratedImages(data.images);
+      } else {
+        throw new Error(data.error || 'Unknown error occurred');
+      }
+    } catch (error) {
+      console.error('Failed to generate image:', error);
+      // You can add a state to show error messages to the user
+      // setErrorMessage(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100 flex flex-col items-center justify-center p-4">
@@ -26,10 +73,29 @@ export default function Home() {
           Flux Uncensored Image Generator
         </h1>
         <div className="space-y-4">
+          {/* Add the Image URL input field */}
+          <div className="space-y-2">
+            <label htmlFor="image-url" className="block text-sm font-medium">
+              Image URL (optional)
+            </label>
+            <Input
+              id="image-url"
+              type="url"
+              placeholder="Enter image URL"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              className="bg-zinc-800 border-zinc-700 text-zinc-100"
+            />
+          </div>
+
+          {/* Existing Textarea for prompt */}
           <Textarea 
             placeholder="Enter your prompt" 
             className="bg-zinc-800 border-zinc-700 text-zinc-100"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
           />
+
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label htmlFor="quality-slider" className="block text-sm font-medium">
@@ -125,12 +191,22 @@ export default function Home() {
               Disable Safety Check
             </label>
           </div>
-          <Button className="w-full bg-blue-600 hover:bg-blue-700">
-            Generate Image
+          <Button 
+            className="w-full bg-blue-600 hover:bg-blue-700"
+            onClick={handleGenerateImage}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Generating...' : 'Generate Image'}
           </Button>
         </div>
         <div className="border-2 border-dashed border-zinc-700 rounded-lg p-4 text-center">
-          Generated image will appear here
+          {generatedImages.length > 0 ? (
+            generatedImages.map((image, index) => (
+              <img key={index} src={image} alt={`Generated image ${index + 1}`} className="mt-4" />
+            ))
+          ) : (
+            'Generated image will appear here'
+          )}
         </div>
       </main>
     </div>
